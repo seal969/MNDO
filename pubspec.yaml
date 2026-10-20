@@ -2,7 +2,7 @@ name: aisat_connect
 description: "A decentralized, end-to-end encrypted messaging app utilizing the Nostr and Signal protocols."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ^3.13.1

@@ -1,0 +1,5 @@
+Release v1.0.1:
+- F-Droid build configuration and offline signing support.
+- Encrypted voice note recording with Blossom media storage.
+- Real-time presence indicators and focus-aware read receipts.
+- Screenshot notification and security hardening.

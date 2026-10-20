@@ -49,6 +49,11 @@ val hasReleaseSigning = resolvedStoreFile != null &&
     !keyAliasProp.isNullOrBlank() &&
     !keyPasswordProp.isNullOrBlank()
 
+val allowUnsignedRelease = project.hasProperty("allowUnsignedRelease") ||
+    project.hasProperty("fdroid") ||
+    System.getenv("ALLOW_UNSIGNED_RELEASE") == "true" ||
+    System.getenv("FDROID") == "true"
+
 android {
     namespace = "com.aisatconnect.aisat_connect"
     compileSdk = flutter.compileSdkVersion
@@ -87,9 +92,15 @@ android {
 
     buildTypes {
         release {
-            // AND-REL-01: Production release build ALWAYS uses the release signing configuration.
-            // Under NO circumstances does release fall back to the Android debug signing configuration.
-            signingConfig = signingConfigs.getByName("release")
+            // AND-REL-01: Production release build uses release signing configuration,
+            // or unsigned mode if building for F-Droid / unsigned distribution.
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else if (allowUnsignedRelease) {
+                null
+            } else {
+                signingConfigs.getByName("release")
+            }
         }
     }
 }
@@ -108,6 +119,10 @@ gradle.taskGraph.whenReady {
 
     if (isReleaseBuildRequested) {
         if (!hasReleaseSigning) {
+            if (allowUnsignedRelease) {
+                logger.lifecycle("[MNDO] allowUnsignedRelease enabled: Proceeding with unsigned release build (F-Droid mode).")
+                return@whenReady
+            }
             val missingRequirements = mutableListOf<String>()
             if (storeFilePath.isNullOrBlank()) {
                 missingRequirements.add("storeFile is missing (define 'storeFile' in key.properties or set ANDROID_KEYSTORE_PATH)")

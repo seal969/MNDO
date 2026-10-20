@@ -1,0 +1,14 @@
+MNDO is a peer-to-peer, decentralized, and zero-compromise privacy messaging application. It combines the censorship-resistant relay transport of the Nostr protocol with the cryptographically audited Signal Protocol (Double Ratchet + X3DH) for true End-to-End Encryption (E2EE).
+
+Key Highlights:
+• No phone numbers or emails required.
+• No central servers, telemetry, or user databases.
+• Sovereign cryptographic identity derived deterministically from a standard BIP-39 12-word recovery phrase.
+• Encrypted storage at rest using SQLCipher 256-bit AES encryption.
+
+Features:
+• Military-grade End-to-End Encryption with Double Ratchet & X3DH PreKeys
+• Client-side encrypted voice notes (AES-256-GCM) with decentralized Blossom media storage
+• Self-healing WebSocket transport architecture with reconnect backoff and jitter
+• Real-time presence indicators and focus-aware read receipts
+• Fully open source under the AGPLv3 license

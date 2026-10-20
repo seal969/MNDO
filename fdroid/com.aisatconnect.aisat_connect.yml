@@ -1,0 +1,50 @@
+Categories:
+  - Internet
+  - Security
+License: AGPL-3.0-only
+SourceCode: https://github.com/seal969/MNDO
+IssueTracker: https://github.com/seal969/MNDO/issues
+Changelog: https://github.com/seal969/MNDO/releases
+
+AutoName: MNDO
+Summary: Decentralized, end-to-end encrypted messaging with Nostr & Signal Protocol
+Description: |-
+  MNDO is a peer-to-peer, decentralized, and zero-compromise privacy messaging application.
+  It combines the censorship-resistant relay transport of the Nostr protocol with the
+  cryptographically audited Signal Protocol (Double Ratchet + X3DH) for true End-to-End
+  Encryption (E2EE).
+
+  Key Features:
+  * No phone numbers or emails required.
+  * No central servers, telemetry, or user databases.
+  * Sovereign cryptographic identity derived deterministically from a 12-word recovery phrase.
+  * Encrypted storage at rest using SQLCipher 256-bit AES encryption.
+  * Double Ratchet & X3DH PreKey session infrastructure with Forward Secrecy.
+  * End-to-End encrypted voice notes (AES-256-GCM) with decentralized Blossom media storage.
+  * Self-healing WebSocket transport architecture with jittered backoff.
+  * Real-time presence indicators and focus-aware read receipts.
+
+RepoType: git
+Repo: https://github.com/seal969/MNDO.git
+
+Builds:
+  - versionName: 1.0.0
+    versionCode: 1
+    commit: v1.0.0
+    output: build/app/outputs/flutter-apk/app-release.apk
+    srclibs:
+      - flutter@stable
+    prebuild:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - export ALLOW_UNSIGNED_RELEASE=true
+      - $$flutter$$/bin/flutter config --no-analytics
+      - $$flutter$$/bin/flutter pub get
+    build:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - export ALLOW_UNSIGNED_RELEASE=true
+      - $$flutter$$/bin/flutter build apk --release --no-tree-shake-icons
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 1.0.0
+CurrentVersionCode: 1

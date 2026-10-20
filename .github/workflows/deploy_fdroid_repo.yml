@@ -1,0 +1,175 @@
+name: Build Release & Deploy F-Droid Repo
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    name: Build APK and Publish F-Droid Repo
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Create Release Keystore for APK
+        run: |
+          mkdir -p android/app
+          keytool -genkeypair -v \
+            -keystore android/app/release.jks \
+            -alias mndo-release \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass mndoKeystorePass123 \
+            -keypass mndoKeystorePass123 \
+            -dname "CN=MNDO, OU=Mobile, O=MNDO, C=US"
+
+          cat <<EOF > android/key.properties
+          storeFile=release.jks
+          storePassword=mndoKeystorePass123
+          keyAlias=mndo-release
+          keyPassword=mndoKeystorePass123
+          EOF
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build Release APK
+        run: flutter build apk --release --no-tree-shake-icons
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/app/outputs/flutter-apk/app-release.apk
+          name: MNDO ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name != '' && github.ref_name || 'v1.0.1' }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install F-Droid Server
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fdroidserver
+
+      - name: Prepare F-Droid Repository Structure
+        run: |
+          mkdir -p fdroid_workspace/repo
+          mkdir -p fdroid_workspace/metadata
+
+          # Copy built APK to repo directory
+          cp build/app/outputs/flutter-apk/app-release.apk fdroid_workspace/repo/com.aisatconnect.aisat_connect.apk
+
+          # Copy icon
+          if [ -f "assets/aisat_connect_logo.png" ]; then
+            cp assets/aisat_connect_logo.png fdroid_workspace/repo/icon.png
+          fi
+
+          # Copy fastlane metadata if available
+          if [ -d "fastlane/metadata/android/en-US" ]; then
+            mkdir -p fdroid_workspace/fastlane/metadata/android/en-US
+            cp -r fastlane/metadata/android/en-US/* fdroid_workspace/fastlane/metadata/android/en-US/
+          fi
+
+          # Write initial config.yml
+          cat <<EOF > fdroid_workspace/config.yml
+          repo_name: "MNDO Repository"
+          repo_icon: "icon.png"
+          repo_description: "Decentralized, end-to-end encrypted messaging with Nostr & Signal Protocol"
+          repo_url: "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/repo"
+          archive_url: "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/archive"
+          EOF
+
+      - name: Fetch Existing F-Droid Signing Key from gh-pages
+        run: |
+          git fetch origin gh-pages:gh-pages || true
+          if git show gh-pages:keystore.p12 > /dev/null 2>&1; then
+            echo "Restoring existing F-Droid keystore from gh-pages..."
+            git show gh-pages:keystore.p12 > fdroid_workspace/keystore.p12
+            if git show gh-pages:config.yml > /dev/null 2>&1; then
+              git show gh-pages:config.yml > fdroid_workspace/config.yml
+            fi
+          fi
+
+      - name: Generate F-Droid Index & Metadata
+        working-directory: fdroid_workspace
+        run: |
+          if [ ! -f "keystore.p12" ]; then
+            echo "Initializing first-time F-Droid repository keystore..."
+            fdroid update --create-key || true
+          fi
+          fdroid update
+
+      - name: Create Landing Page for Web & F-Droid Users
+        run: |
+          cat <<'EOF' > fdroid_workspace/index.html
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>MNDO - F-Droid Repository</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; text-align: center; padding: 2rem; }
+              .card { max-width: 540px; margin: 2rem auto; background: #1e293b; border-radius: 1rem; padding: 2rem; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+              .logo { width: 96px; height: 96px; border-radius: 1.5rem; margin-bottom: 1rem; }
+              h1 { margin: 0 0 0.5rem; color: #38bdf8; font-size: 1.75rem; }
+              p { color: #94a3b8; font-size: 0.95rem; line-height: 1.5; }
+              .btn { display: block; width: 85%; margin: 1rem auto; padding: 0.85rem 1.25rem; font-weight: 600; text-decoration: none; border-radius: 0.5rem; font-size: 1rem; }
+              .btn-primary { background: #38bdf8; color: #0f172a; }
+              .btn-secondary { background: #334155; color: #f8fafc; }
+              .url-box { background: #0f172a; padding: 0.75rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.85rem; word-break: break-all; color: #cbd5e1; margin-top: 1rem; }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <img src="repo/icon.png" class="logo" alt="MNDO Logo">
+              <h1>MNDO Messenger</h1>
+              <p>Decentralized, End-to-End Encrypted messaging utilizing the Nostr and Signal protocols.</p>
+              
+              <a href="repo/com.aisatconnect.aisat_connect.apk" class="btn btn-primary">⬇️ Download APK Directly</a>
+              
+              <p style="margin-top: 1.5rem; font-weight: bold; color: #e2e8f0;">Add to F-Droid App</p>
+              <p>In the F-Droid app on your Android phone, go to <b>Settings &gt; Repositories &gt; +</b> and enter this URL:</p>
+              <div class="url-box" id="repo-url"></div>
+            </div>
+            <script>
+              const repoUrl = window.location.origin + window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') + '/repo';
+              document.getElementById('repo-url').innerText = repoUrl;
+            </script>
+          </body>
+          </html>
+          EOF
+
+      - name: Deploy F-Droid Repository to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./fdroid_workspace
+          publish_branch: gh-pages
+          keep_files: false
